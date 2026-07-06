@@ -4,57 +4,71 @@ const DISCORD_SCOPES = "identify openid sdk.social_layer";
 
 export default {
     async fetch(request, env) {
-        const url = new URL(request.url);
+        try {
+            return await handleRequest(request, env);
+        } catch (error) {
+            console.error(error?.stack || error?.message || error);
 
-        if (url.pathname === "/api/health") {
-            return Response.json({
-                ok: true,
-                app: "Listen on Repeat"
-            });
-        }
-
-        if (url.pathname === "/api/db-test") {
-            const result = await env.DB.prepare("SELECT 1 AS ok").first();
-
-            return Response.json({
-                ok: true,
-                db: result
-            });
-        }
-
-        if (url.pathname === "/api/auth/discord/start") {
-            return handleDiscordStart(request, env);
-        }
-
-        if (url.pathname === "/api/auth/discord/callback") {
-            return handleDiscordCallback(request, env);
-        }
-
-        if (url.pathname === "/api/me") {
-            return handleMe(request, env);
-        }
-
-        if (url.pathname === "/api/delete") {
-            return handleDelete(request, env);
-        }
-
-        if (url.pathname === "/api/auth/spotify/start") {
             return Response.json({
                 ok: false,
-                message: "Spotify connection is not implemented yet."
-            }, { status: 501 });
+                error: "Worker exception",
+                message: error?.message || "Unknown error"
+            }, { status: 500 });
         }
-
-        if (url.pathname.startsWith("/api/")) {
-            return Response.json({
-                ok: false,
-                error: "Not found"
-            }, { status: 404 });
-        }
-
-        return env.ASSETS.fetch(request);
     }
 };
+
+async function handleRequest(request, env) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/api/health") {
+        return Response.json({
+            ok: true,
+            app: "Listen on Repeat"
+        });
+    }
+
+    if (url.pathname === "/api/db-test") {
+        const result = await env.DB.prepare("SELECT 1 AS ok").first();
+
+        return Response.json({
+            ok: true,
+            db: result
+        });
+    }
+
+    if (url.pathname === "/api/auth/discord/start") {
+        return handleDiscordStart(request, env);
+    }
+
+    if (url.pathname === "/api/auth/discord/callback") {
+        return handleDiscordCallback(request, env);
+    }
+
+    if (url.pathname === "/api/me") {
+        return handleMe(request, env);
+    }
+
+    if (url.pathname === "/api/delete") {
+        return handleDelete(request, env);
+    }
+
+    if (url.pathname === "/api/auth/spotify/start") {
+        return Response.json({
+            ok: false,
+            message: "Spotify connection is not implemented yet."
+        }, { status: 501 });
+    }
+
+    if (url.pathname.startsWith("/api/")) {
+        return Response.json({
+            ok: false,
+            error: "Not found"
+        }, { status: 404 });
+    }
+
+    return env.ASSETS.fetch(request);
+}
 
 async function handleDiscordStart(request, env) {
     requireEnv(env, "DISCORD_CLIENT_ID");
