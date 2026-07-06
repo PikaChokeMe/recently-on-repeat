@@ -1,7 +1,16 @@
-name: Update Listen on Repeat Widget
+name: Legacy Manual Single-User Update
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print payload without patching Discord"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   update-widget:
@@ -16,9 +25,11 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Update Discord widget
+      - name: Run legacy updater
         run: node scripts/update-widget.js
         env:
+          DRY_RUN: ${{ inputs.dry_run == 'true' && '1' || '0' }}
+
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
@@ -29,3 +40,4 @@ jobs:
           DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
           DISCORD_IDENTITY_ID: "0"
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_API_BASE: https://discord.com/api/v9
