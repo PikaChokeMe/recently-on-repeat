@@ -41,7 +41,7 @@ export function loadConfig() {
       userId: requiredEnv("DISCORD_USER_ID"),
       botToken: requiredEnv("DISCORD_BOT_TOKEN"),
       identityId: process.env.DISCORD_IDENTITY_ID || "0",
-      apiBase: process.env.DISCORD_API_BASE || "https://discord.com/api/v10"
+      apiBase: process.env.DISCORD_API_BASE || "https://discord.com/api/v9"
     }
   };
 }
