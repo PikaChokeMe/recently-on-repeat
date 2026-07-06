@@ -7,6 +7,10 @@ workers_dev = true
 directory = "./docs"
 binding = "ASSETS"
 
+[vars]
+PUBLIC_BASE_URL = "https://recently-on-repeat.killspire.workers.dev"
+DISCORD_CLIENT_ID = "1523612953063063662"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "listen-on-repeat"
