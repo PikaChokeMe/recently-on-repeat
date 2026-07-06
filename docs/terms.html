@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terms of Service | Listen on Repeat</title>
+  <meta name="description" content="Terms of Service for Listen on Repeat." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1117;
+      --panel: #171a23;
+      --text: #f3f5f7;
+      --muted: #aab2c0;
+      --accent: #1db954;
+      --border: #2b3140;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    main {
+      width: min(860px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 56px 0;
+    }
+
+    article {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      margin-bottom: 8px;
+      font-size: 1.25rem;
+    }
+
+    p, li {
+      color: var(--muted);
+    }
+
+    p {
+      margin: 0 0 16px;
+    }
+
+    strong {
+      color: var(--text);
+    }
+
+    a {
+      color: var(--text);
+      text-decoration-color: var(--accent);
+      text-underline-offset: 4px;
+    }
+
+    a:hover {
+      color: var(--accent);
+    }
+
+    .meta {
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .back {
+      display: inline-block;
+      margin-bottom: 24px;
+      color: var(--muted);
+    }
+
+    ul {
+      padding-left: 1.4rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="./index.html">Back to Listen on Repeat</a>
+
+    <article>
+      <h1>Terms of Service</h1>
+      <p class="meta">Last updated: July 6, 2026</p>
+
+      <p>
+        These Terms of Service govern your use of Listen on Repeat.
+      </p>
+
+      <p>
+        By using, copying, modifying, self-hosting, or referencing this project, you agree to these terms.
+      </p>
+
+      <h2>What Listen on Repeat is</h2>
+      <p>
+        Listen on Repeat is a source-available Discord profile widget updater. It is designed to fetch Spotify track metadata and push that data into a custom Discord profile widget.
+      </p>
+
+      <p>
+        The current version is a self-hosted/template project. Users are expected to configure their own Discord Developer Application, Spotify Developer Application, GitHub Actions workflow, and secrets.
+      </p>
+
+      <h2>Personal and non-commercial use</h2>
+      <p>
+        Listen on Repeat is provided for personal and non-commercial use.
+      </p>
+
+      <p>
+        You may use, copy, modify, and self-host this project for your own personal, non-commercial Discord widget.
+      </p>
+
+      <p>
+        You may not sell this project, offer it as a paid hosted service, include it in a paid product, monetize derivatives of it, or use it for commercial purposes without explicit written permission from PikaChokeMe.
+      </p>
+
+      <h2>Commercial rights</h2>
+      <p>
+        Commercial rights are reserved by PikaChokeMe.
+      </p>
+
+      <p>
+        If you want to use Listen on Repeat commercially, you must get explicit written permission first.
+      </p>
+
+      <h2>License</h2>
+      <p>
+        The project source code is made available under the PolyForm Noncommercial License 1.0.0 unless otherwise stated in the repository.
+      </p>
+
+      <p>
+        These Terms are intended to summarize and support that non-commercial use model. If there is a conflict between this summary and the license file included in the repository, the license file controls for the code it covers.
+      </p>
+
+      <h2>Your responsibilities</h2>
+      <p>
+        If you self-host this project, you are responsible for:
+      </p>
+
+      <ul>
+        <li>Creating and configuring your own Discord Developer Application.</li>
+        <li>Creating and configuring your own Spotify Developer Application.</li>
+        <li>Storing your own secrets safely.</li>
+        <li>Following Discord's terms, policies, and developer rules.</li>
+        <li>Following Spotify's terms, policies, and developer rules.</li>
+        <li>Following GitHub's terms and policies if you use GitHub Actions.</li>
+        <li>Rotating any token or secret you accidentally expose.</li>
+      </ul>
+
+      <h2>No warranty</h2>
+      <p>
+        Listen on Repeat is provided as-is, without warranty of any kind.
+      </p>
+
+      <p>
+        The project may break, stop working, become outdated, or need changes at any time. Discord and Spotify APIs may change, limit, remove, or break functionality this project relies on.
+      </p>
+
+      <p>
+        There is no guarantee that this project will work for your account, your widget, your region, your hosting setup, or your particular flavor of gremlin machinery.
+      </p>
+
+      <h2>No liability</h2>
+      <p>
+        To the maximum extent allowed by law, PikaChokeMe is not liable for damages, losses, account issues, API issues, token leaks, service interruptions, data loss, or other problems arising from your use of this project.
+      </p>
+
+      <p>
+        You use this project at your own risk.
+      </p>
+
+      <h2>Tokens and secrets</h2>
+      <p>
+        You should never publish or expose Spotify refresh tokens, Spotify access tokens, Discord bot tokens, Discord user tokens, client secrets, or other sensitive credentials.
+      </p>
+
+      <p>
+        If you expose a token or secret, you are responsible for revoking or rotating it.
+      </p>
+
+      <h2>Third-party services</h2>
+      <p>
+        Listen on Repeat is not affiliated with Discord, Spotify, GitHub, or any other third-party service.
+      </p>
+
+      <p>
+        Your use of those services is governed by their own terms and policies.
+      </p>
+
+      <h2>Changes to these terms</h2>
+      <p>
+        These Terms may be updated from time to time. Changes will be posted on this page with an updated date.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        For questions about this project, open an issue in the Listen on Repeat GitHub repository:
+        <a href="https://github.com/PikaChokeMe/recently-on-repeat/issues">https://github.com/PikaChokeMe/recently-on-repeat/issues</a>
+      </p>
+
+      <p>
+        Do not post Spotify tokens, Discord tokens, client secrets, refresh tokens, access tokens, or other private credentials in GitHub issues.
+      </p>
+
+      <h2>Disclaimer</h2>
+      <p>
+        This project is not affiliated with Discord or Spotify. All trademarks, service names, logos, and related assets belong to their respective owners.
+      </p>
+    </article>
+  </main>
+</body>
+</html>

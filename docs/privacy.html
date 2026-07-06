@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy | Listen on Repeat</title>
+  <meta name="description" content="Privacy Policy for Listen on Repeat." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1117;
+      --panel: #171a23;
+      --text: #f3f5f7;
+      --muted: #aab2c0;
+      --accent: #1db954;
+      --border: #2b3140;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    main {
+      width: min(860px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 56px 0;
+    }
+
+    article {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      margin-bottom: 8px;
+      font-size: 1.25rem;
+    }
+
+    p, li {
+      color: var(--muted);
+    }
+
+    p {
+      margin: 0 0 16px;
+    }
+
+    strong {
+      color: var(--text);
+    }
+
+    a {
+      color: var(--text);
+      text-decoration-color: var(--accent);
+      text-underline-offset: 4px;
+    }
+
+    a:hover {
+      color: var(--accent);
+    }
+
+    .meta {
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .back {
+      display: inline-block;
+      margin-bottom: 24px;
+      color: var(--muted);
+    }
+
+    ul {
+      padding-left: 1.4rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="./index.html">Back to Listen on Repeat</a>
+
+    <article>
+      <h1>Privacy Policy</h1>
+      <p class="meta">Last updated: July 6, 2026</p>
+
+      <p>
+        This Privacy Policy describes how Listen on Repeat handles data.
+      </p>
+
+      <p>
+        Listen on Repeat is currently provided as a self-hosted/template project. It is intended for users who configure their own Discord Developer Application, Spotify Developer Application, GitHub Actions workflow, and secrets.
+      </p>
+
+      <h2>Summary</h2>
+      <p>
+        The self-hosted version of Listen on Repeat does not send your Spotify tokens, Discord tokens, or widget data to PikaChokeMe.
+      </p>
+
+      <p>
+        If you run your own copy, your data is processed by your own configured infrastructure, such as your GitHub Actions workflow and your own Discord and Spotify developer applications.
+      </p>
+
+      <h2>Data used by the project</h2>
+      <p>
+        Depending on how you configure it, Listen on Repeat may access Spotify data needed to display your widget, such as:
+      </p>
+
+      <ul>
+        <li>Track title</li>
+        <li>Artist name</li>
+        <li>Album name</li>
+        <li>Album artwork URL</li>
+        <li>Spotify track metadata returned by the Spotify API</li>
+      </ul>
+
+      <p>
+        This data is used to populate the Discord widget fields you configure.
+      </p>
+
+      <h2>Spotify authorization</h2>
+      <p>
+        Listen on Repeat is designed to use Spotify OAuth authorization. For the intended top-tracks widget, the relevant Spotify permission is read-only access to your top items.
+      </p>
+
+      <p>
+        The project does not need your Spotify password. You should never put your Spotify password, Spotify refresh token, Spotify access token, Discord bot token, Discord user token, or client secret into public repository files, public web pages, or client-side widget code.
+      </p>
+
+      <h2>Discord data</h2>
+      <p>
+        Listen on Repeat formats Spotify track data and pushes it to Discord as widget display data.
+      </p>
+
+      <p>
+        The current self-hosted template does not require access to your Discord messages, Discord servers, payment information, or private conversations.
+      </p>
+
+      <h2>Secrets and tokens</h2>
+      <p>
+        If you self-host this project, you are responsible for storing your own secrets safely.
+      </p>
+
+      <p>
+        Recommended secret storage includes GitHub Actions repository secrets or another trusted server-side secret store. Do not commit secrets to your repository.
+      </p>
+
+      <h2>Data collected by PikaChokeMe</h2>
+      <p>
+        For the current self-hosted/template version, PikaChokeMe does not operate a hosted backend for your account and does not collect your Spotify tokens, Discord tokens, or widget data.
+      </p>
+
+      <p>
+        If a hosted version of Listen on Repeat is offered in the future, it will need its own updated privacy policy describing what data is collected, how it is stored, and how users can disconnect or delete their data.
+      </p>
+
+      <h2>Third-party services</h2>
+      <p>
+        Your use of Listen on Repeat may involve third-party services, including Spotify, Discord, GitHub, and any hosting provider you choose.
+      </p>
+
+      <p>
+        Those services have their own privacy policies, terms, and data practices. You are responsible for reviewing and following them when configuring your own copy of this project.
+      </p>
+
+      <h2>Children's privacy</h2>
+      <p>
+        Listen on Repeat is not intended for children. Do not use this project if you are not old enough to use the relevant third-party services, including Spotify, Discord, and GitHub.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        This Privacy Policy may be updated from time to time. Changes will be posted on this page with an updated date.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        For questions about this project, open an issue in the Listen on Repeat GitHub repository:
+        <a href="https://github.com/PikaChokeMe/recently-on-repeat/issues">https://github.com/PikaChokeMe/recently-on-repeat/issues</a>
+      </p>
+
+      <p>
+        Do not post Spotify tokens, Discord tokens, client secrets, refresh tokens, access tokens, or other private credentials in GitHub issues.
+      </p>
+
+      <h2>Disclaimer</h2>
+      <p>
+        This project is not affiliated with Discord or Spotify. All trademarks, service names, logos, and related assets belong to their respective owners.
+      </p>
+    </article>
+  </main>
+</body>
+</html>
