@@ -1,0 +1,8 @@
+﻿name = "recently-on-repeat"
+main = "src/worker.js"
+compatibility_date = "2026-07-06"
+workers_dev = true
+
+[assets]
+directory = "./docs"
+binding = "ASSETS"
