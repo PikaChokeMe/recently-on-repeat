@@ -2,6 +2,9 @@
 const DISCORD_OAUTH_URL = "https://discord.com/oauth2/authorize";
 const DISCORD_SCOPES = "identify openid sdk.social_layer";
 
+const SPOTIFY_ACCOUNTS_BASE = "https://accounts.spotify.com";
+const SPOTIFY_SCOPES = "user-top-read";
+
 export default {
     async fetch(request, env) {
         try {
@@ -54,10 +57,11 @@ async function handleRequest(request, env) {
     }
 
     if (url.pathname === "/api/auth/spotify/start") {
-        return Response.json({
-            ok: false,
-            message: "Spotify connection is not implemented yet."
-        }, { status: 501 });
+        return handleSpotifyStart(request, env);
+    }
+
+    if (url.pathname === "/api/auth/spotify/callback") {
+        return handleSpotifyCallback(request, env);
     }
 
     if (url.pathname === "/api/debug-cookies") {
@@ -193,6 +197,127 @@ async function handleDiscordCallback(request, env) {
             clearCookie("lor_oauth_state")
         ]
     });
+}
+
+async function handleSpotifyStart(request, env) {
+    requireEnv(env, "SPOTIFY_CLIENT_ID");
+
+    const discordUserId = await getSessionUserId(request, env);
+
+    if (!discordUserId) {
+        return redirect("/api/auth/discord/start");
+    }
+
+    const state = randomBase64Url(32);
+    const redirectUri = getSpotifyRedirectUri(request, env);
+
+    const authUrl = new URL(`${SPOTIFY_ACCOUNTS_BASE}/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", env.SPOTIFY_CLIENT_ID);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("scope", SPOTIFY_SCOPES);
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("show_dialog", "true");
+
+    return redirect(authUrl.toString(), {
+        "Set-Cookie": makeCookie("lor_spotify_state", state, {
+            maxAge: 600
+        })
+    });
+}
+
+async function handleSpotifyCallback(request, env) {
+    requireEnv(env, "SPOTIFY_CLIENT_ID");
+    requireEnv(env, "SPOTIFY_CLIENT_SECRET");
+    requireEnv(env, "TOKEN_ENCRYPTION_KEY");
+
+    const discordUserId = await getSessionUserId(request, env);
+
+    if (!discordUserId) {
+        return Response.json({
+            ok: false,
+            error: "Not logged in with Discord."
+        }, { status: 401 });
+    }
+
+    const url = new URL(request.url);
+    const code = url.searchParams.get("code");
+    const returnedState = url.searchParams.get("state");
+    const storedState = getCookie(request, "lor_spotify_state");
+
+    if (!code) {
+        return Response.json({
+            ok: false,
+            error: "Missing Spotify OAuth code."
+        }, { status: 400 });
+    }
+
+    if (!returnedState || !storedState || returnedState !== storedState) {
+        return Response.json({
+            ok: false,
+            error: "Invalid Spotify OAuth state."
+        }, { status: 400 });
+    }
+
+    const redirectUri = getSpotifyRedirectUri(request, env);
+    const credentials = btoa(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`);
+
+    const tokenResponse = await fetch(`${SPOTIFY_ACCOUNTS_BASE}/api/token`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Basic ${credentials}`,
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: redirectUri
+        })
+    });
+
+    const tokenBody = await tokenResponse.json().catch(() => ({}));
+
+    if (!tokenResponse.ok) {
+        return Response.json({
+            ok: false,
+            error: "Spotify token exchange failed.",
+            status: tokenResponse.status,
+            details: sanitizeOAuthError(tokenBody)
+        }, { status: 500 });
+    }
+
+    if (!tokenBody.refresh_token) {
+        return Response.json({
+            ok: false,
+            error: "Spotify did not return a refresh token."
+        }, { status: 500 });
+    }
+
+    const encrypted = await encryptString(tokenBody.refresh_token, env.TOKEN_ENCRYPTION_KEY);
+
+    await env.DB.prepare(`
+    UPDATE users
+    SET
+      spotify_refresh_token_encrypted = ?,
+      spotify_refresh_token_iv = ?,
+      spotify_connected = 1,
+      updated_at = CURRENT_TIMESTAMP,
+      last_error = NULL
+    WHERE discord_user_id = ?
+  `).bind(
+        encrypted.ciphertext,
+        encrypted.iv,
+        discordUserId
+    ).run();
+
+    return redirect("/app.html", {
+        "Set-Cookie": clearCookie("lor_spotify_state")
+    });
+}
+
+function getSpotifyRedirectUri(request, env) {
+    const origin = env.PUBLIC_BASE_URL || new URL(request.url).origin;
+    return `${origin}/api/auth/spotify/callback`;
 }
 
 async function handleMe(request, env) {
@@ -433,4 +558,53 @@ function sanitizeOAuthError(errorBody) {
         error: errorBody.error,
         error_description: errorBody.error_description
     };
+}
+
+async function encryptString(plainText, base64UrlKey) {
+    const encoder = new TextEncoder();
+    const keyBytes = base64UrlDecode(base64UrlKey);
+
+    if (keyBytes.byteLength !== 32) {
+        throw new Error("TOKEN_ENCRYPTION_KEY must decode to 32 bytes.");
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        keyBytes,
+        { name: "AES-GCM" },
+        false,
+        ["encrypt"]
+    );
+
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    const ciphertext = await crypto.subtle.encrypt(
+        {
+            name: "AES-GCM",
+            iv
+        },
+        cryptoKey,
+        encoder.encode(plainText)
+    );
+
+    return {
+        ciphertext: base64UrlEncode(new Uint8Array(ciphertext)),
+        iv: base64UrlEncode(iv)
+    };
+}
+
+function base64UrlDecode(value) {
+    const base64 = value
+        .replaceAll("-", "+")
+        .replaceAll("_", "/")
+        .padEnd(Math.ceil(value.length / 4) * 4, "=");
+
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    return bytes;
 }
