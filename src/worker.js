@@ -60,6 +60,14 @@ async function handleRequest(request, env) {
         }, { status: 501 });
     }
 
+    if (url.pathname === "/api/debug-cookies") {
+        return Response.json({
+            cookieHeader: request.headers.get("Cookie") || null,
+            hasSession: Boolean(getCookie(request, "lor_session")),
+            hasOauthState: Boolean(getCookie(request, "lor_oauth_state"))
+        });
+    }
+
     if (url.pathname.startsWith("/api/")) {
         return Response.json({
             ok: false,
@@ -183,7 +191,7 @@ async function handleDiscordCallback(request, env) {
                 maxAge: 60 * 60 * 24 * 30
             }),
             clearCookie("lor_oauth_state")
-        ].join(", ")
+        ]
     });
 }
 
@@ -310,13 +318,24 @@ function clearCookie(name) {
     ].join("; ");
 }
 
-function redirect(location, headers = {}) {
+function redirect(location, extraHeaders = {}) {
+    const headers = new Headers();
+
+    headers.set("Location", location);
+
+    for (const [name, value] of Object.entries(extraHeaders)) {
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                headers.append(name, item);
+            }
+        } else {
+            headers.set(name, value);
+        }
+    }
+
     return new Response(null, {
         status: 302,
-        headers: {
-            "Location": location,
-            ...headers
-        }
+        headers
     });
 }
 
