@@ -19,7 +19,7 @@ jobs:
           node-version: "22"
 
       - name: Update Discord widget
-        run: node src/update-widget.js
+        run: node scripts/update-widget.js
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
