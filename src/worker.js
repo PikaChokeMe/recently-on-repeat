@@ -9,6 +9,15 @@
             });
         }
 
+        if (url.pathname === "/api/db-test") {
+            const result = await env.DB.prepare("SELECT 1 AS ok").first();
+
+            return Response.json({
+                ok: true,
+                db: result
+            });
+        }
+
         if (url.pathname.startsWith("/api/")) {
             return Response.json(
                 {

@@ -6,3 +6,8 @@ workers_dev = true
 [assets]
 directory = "./docs"
 binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "listen-on-repeat"
+database_id = "cc18cd4c-e9cb-4bfd-bfeb-e350128142f5"
