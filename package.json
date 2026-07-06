@@ -1,0 +1,14 @@
+{
+  "name": "recently-on-repeat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Spotify top tracks updater for the Listen on Repeat Discord widget.",
+  "scripts": {
+    "update": "node src/update-widget.js",
+    "dry-run": "node src/update-widget.js --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
