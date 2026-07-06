@@ -248,6 +248,9 @@
 
         <div class="button-row">
             <a class="button" href="/">Back to home</a>
+            <button id="update-now" class="button primary" type="button" disabled>
+                Update widget now
+            </button>
             <button id="delete-account" class="button danger" type="button" disabled>
                 Delete my data
             </button>
@@ -274,6 +277,7 @@
     const spotifyDetail = document.getElementById("spotify-detail");
     const spotifyAction = document.getElementById("spotify-action");
 
+    const updateButton = document.getElementById("update-now");
     const deleteButton = document.getElementById("delete-account");
     const lastUpdate = document.getElementById("last-update");
 
@@ -344,6 +348,7 @@
                 disableLink(spotifyAction, false);
             }
 
+            updateButton.disabled = !spotifyConnected;
             deleteButton.disabled = false;
 
             if (user.last_success_at) {
@@ -358,6 +363,34 @@
             lastUpdate.textContent = error.message || "Unknown dashboard error.";
         }
     }
+
+    updateButton.addEventListener("click", async () => {
+        updateButton.disabled = true;
+        updateButton.textContent = "Updating...";
+
+        const response = await fetch("/api/update-me", {
+            method: "POST",
+            credentials: "include"
+        });
+
+        const body = await response.json().catch(() => ({}));
+
+        if (!response.ok || !body.ok) {
+            alert(body.error || "Widget update failed.");
+            updateButton.disabled = false;
+            updateButton.textContent = "Update widget now";
+            await refreshDashboard();
+            return;
+        }
+
+        updateButton.textContent = "Updated";
+        await refreshDashboard();
+
+        setTimeout(() => {
+            updateButton.textContent = "Update widget now";
+            updateButton.disabled = false;
+        }, 1500);
+    });
 
     deleteButton.addEventListener("click", async () => {
         const confirmed = confirm("Delete your stored Listen on Repeat data? You can reconnect later.");

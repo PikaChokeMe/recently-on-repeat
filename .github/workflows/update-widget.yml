@@ -2,8 +2,6 @@ name: Update Listen on Repeat Widget
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 */3 * * *"
 
 jobs:
   update-widget:

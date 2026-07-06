@@ -11,8 +11,15 @@ binding = "ASSETS"
 PUBLIC_BASE_URL = "https://recently-on-repeat.killspire.workers.dev"
 DISCORD_CLIENT_ID = "1523612953063063662"
 SPOTIFY_CLIENT_ID = "707df3c059a04b3fae13ce1962cce9bb"
+DISCORD_API_BASE = "https://discord.com/api/v9"
+SPOTIFY_TIME_RANGE = "short_term"
+SPOTIFY_LIMIT = "5"
+DISCORD_IDENTITY_ID = "0"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "listen-on-repeat"
 database_id = "cc18cd4c-e9cb-4bfd-bfeb-e350128142f5"
+
+[triggers]
+crons = ["17 */3 * * *"]

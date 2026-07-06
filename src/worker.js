@@ -6,9 +6,9 @@ const SPOTIFY_ACCOUNTS_BASE = "https://accounts.spotify.com";
 const SPOTIFY_SCOPES = "user-top-read";
 
 export default {
-    async fetch(request, env) {
+    async fetch(request, env, ctx) {
         try {
-            return await handleRequest(request, env);
+            return await handleRequest(request, env, ctx);
         } catch (error) {
             console.error(error?.stack || error?.message || error);
 
@@ -18,6 +18,10 @@ export default {
                 message: error?.message || "Unknown error"
             }, { status: 500 });
         }
+    },
+
+    async scheduled(controller, env, ctx) {
+        ctx.waitUntil(runScheduledUpdates(env));
     }
 };
 
@@ -70,6 +74,10 @@ async function handleRequest(request, env) {
             hasSession: Boolean(getCookie(request, "lor_session")),
             hasOauthState: Boolean(getCookie(request, "lor_oauth_state"))
         });
+    }
+
+    if (url.pathname === "/api/update-me") {
+        return handleUpdateMe(request, env);
     }
 
     if (url.pathname.startsWith("/api/")) {
@@ -376,9 +384,9 @@ async function handleDelete(request, env) {
     }
 
     await env.DB.prepare(`
-    DELETE FROM users
-    WHERE discord_user_id = ?
-  `).bind(discordUserId).run();
+        DELETE FROM users
+        WHERE discord_user_id = ?
+    `).bind(discordUserId).run();
 
     return Response.json({
         ok: true,
@@ -388,6 +396,289 @@ async function handleDelete(request, env) {
             "Set-Cookie": clearCookie("lor_session")
         }
     });
+}
+
+async function handleUpdateMe(request, env) {
+    if (request.method !== "POST") {
+        return Response.json({
+            ok: false,
+            error: "Method not allowed."
+        }, {
+            status: 405,
+            headers: {
+                "Allow": "POST"
+            }
+        });
+    }
+
+    const discordUserId = await getSessionUserId(request, env);
+
+    if (!discordUserId) {
+        return Response.json({
+            ok: false,
+            error: "Not logged in."
+        }, { status: 401 });
+    }
+
+    const result = await updateOneUser(env, discordUserId);
+
+    return Response.json(result, {
+        status: result.ok ? 200 : 500
+    });
+}
+
+const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
+
+async function updateOneUser(env, discordUserId) {
+    requireEnv(env, "SPOTIFY_CLIENT_ID");
+    requireEnv(env, "SPOTIFY_CLIENT_SECRET");
+    requireEnv(env, "TOKEN_ENCRYPTION_KEY");
+    requireEnv(env, "DISCORD_BOT_TOKEN");
+
+    const user = await env.DB.prepare(`
+    SELECT
+      discord_user_id,
+      spotify_refresh_token_encrypted,
+      spotify_refresh_token_iv,
+      spotify_connected,
+      enabled
+    FROM users
+    WHERE discord_user_id = ?
+  `).bind(discordUserId).first();
+
+    if (!user) {
+        return {
+            ok: false,
+            error: "User not found."
+        };
+    }
+
+    if (Number(user.enabled) !== 1) {
+        return {
+            ok: false,
+            error: "User updates are disabled."
+        };
+    }
+
+    if (Number(user.spotify_connected) !== 1 || !user.spotify_refresh_token_encrypted || !user.spotify_refresh_token_iv) {
+        return {
+            ok: false,
+            error: "Spotify is not connected."
+        };
+    }
+
+    try {
+        const refreshToken = await decryptString(
+            user.spotify_refresh_token_encrypted,
+            user.spotify_refresh_token_iv,
+            env.TOKEN_ENCRYPTION_KEY
+        );
+
+        const tokenBody = await refreshSpotifyAccessToken(env, refreshToken);
+
+        if (tokenBody.refresh_token) {
+            const encrypted = await encryptString(tokenBody.refresh_token, env.TOKEN_ENCRYPTION_KEY);
+
+            await env.DB.prepare(`
+        UPDATE users
+        SET
+          spotify_refresh_token_encrypted = ?,
+          spotify_refresh_token_iv = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE discord_user_id = ?
+      `).bind(
+                encrypted.ciphertext,
+                encrypted.iv,
+                discordUserId
+            ).run();
+        }
+
+        const tracks = await getSpotifyTopTracks(env, tokenBody.access_token);
+        const payload = buildDiscordPayload(tracks);
+
+        await patchDiscordWidgetForUser(env, discordUserId, payload);
+
+        await env.DB.prepare(`
+      UPDATE users
+      SET
+        last_success_at = CURRENT_TIMESTAMP,
+        last_error = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE discord_user_id = ?
+    `).bind(discordUserId).run();
+
+        return {
+            ok: true,
+            updated: true,
+            trackCount: tracks.length
+        };
+    } catch (error) {
+        const safeError = sanitizeRuntimeError(error);
+
+        await env.DB.prepare(`
+      UPDATE users
+      SET
+        last_error = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE discord_user_id = ?
+    `).bind(safeError, discordUserId).run();
+
+        return {
+            ok: false,
+            error: safeError
+        };
+    }
+}
+
+async function refreshSpotifyAccessToken(env, refreshToken) {
+    const credentials = btoa(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`);
+
+    const response = await fetch(`${SPOTIFY_ACCOUNTS_BASE}/api/token`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Basic ${credentials}`,
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+            grant_type: "refresh_token",
+            refresh_token: refreshToken
+        })
+    });
+
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(`Spotify refresh failed: ${response.status} ${body.error || "unknown_error"}`);
+    }
+
+    if (!body.access_token) {
+        throw new Error("Spotify refresh did not return an access token.");
+    }
+
+    return body;
+}
+
+async function getSpotifyTopTracks(env, accessToken) {
+    const timeRange = env.SPOTIFY_TIME_RANGE || "short_term";
+    const limit = env.SPOTIFY_LIMIT || "5";
+
+    const url = new URL(`${SPOTIFY_API_BASE}/me/top/tracks`);
+    url.searchParams.set("time_range", timeRange);
+    url.searchParams.set("limit", limit);
+
+    const response = await fetch(url, {
+        headers: {
+            "Authorization": `Bearer ${accessToken}`
+        }
+    });
+
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(`Spotify top tracks failed: ${response.status} ${body.error?.message || body.error || "unknown_error"}`);
+    }
+
+    return body.items || [];
+}
+
+async function patchDiscordWidgetForUser(env, discordUserId, payload) {
+    const apiBase = env.DISCORD_API_BASE || "https://discord.com/api/v9";
+    const appId = env.DISCORD_CLIENT_ID;
+    const identityId = env.DISCORD_IDENTITY_ID || "0";
+
+    const url = `${apiBase}/applications/${appId}/users/${discordUserId}/identities/${identityId}/profile`;
+
+    const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+            "Authorization": `Bot ${env.DISCORD_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+            "User-Agent": "DiscordBot (https://github.com/PikaChokeMe/recently-on-repeat, 0.1.0)"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const text = await response.text();
+
+    if (!response.ok) {
+        throw new Error(`Discord widget patch failed: ${response.status} ${text.slice(0, 240)}`);
+    }
+
+    return text ? JSON.parse(text) : {};
+}
+
+const FALLBACK_ART_URL = "https://placehold.co/512x512/1f2430/f3f5f7.png?text=No+Art";
+
+function truncate(value, maxLength) {
+    if (!value) {
+        return "";
+    }
+
+    const clean = String(value).trim();
+
+    if (clean.length <= maxLength) {
+        return clean;
+    }
+
+    return `${clean.slice(0, maxLength - 3)}...`;
+}
+
+function getArtists(track) {
+    return track?.artists?.map((artist) => artist.name).filter(Boolean).join(", ") || "Unknown Artist";
+}
+
+function getAlbumArt(track) {
+    const images = track?.album?.images || [];
+    return images[0]?.url || FALLBACK_ART_URL;
+}
+
+function stringField(name, value) {
+    return {
+        type: 1,
+        name,
+        value
+    };
+}
+
+function imageField(name, url) {
+    return {
+        type: 3,
+        name,
+        value: {
+            url
+        }
+    };
+}
+
+function buildDiscordPayload(tracks) {
+    const dynamic = [];
+
+    for (let i = 0; i < 5; i += 1) {
+        const rank = i + 1;
+        const track = tracks[i];
+
+        const title = truncate(track?.name || `Song Title ${rank}`, rank === 1 ? 80 : 48);
+        const artist = truncate(track ? getArtists(track) : `Song Artist ${rank}`, rank === 1 ? 80 : 48);
+        const album = truncate(track?.album?.name || `Song Album ${rank}`, rank === 1 ? 80 : 48);
+        const art = getAlbumArt(track);
+
+        if (rank === 1) {
+            dynamic.push(stringField("track_1_title", title));
+            dynamic.push(stringField("track_1_artist", artist));
+            dynamic.push(stringField("track_1_album", album));
+            dynamic.push(imageField("track_1_art", art));
+        } else {
+            dynamic.push(stringField(`track_${rank}_title`, title));
+            dynamic.push(stringField(`track_${rank}_info`, truncate(`${artist} - ${album}`, 96)));
+            dynamic.push(imageField(`track_${rank}_art`, art));
+        }
+    }
+
+    return {
+        data: {
+            dynamic
+        }
+    };
 }
 
 function getDiscordRedirectUri(request, env) {
@@ -593,6 +884,45 @@ async function encryptString(plainText, base64UrlKey) {
     };
 }
 
+async function decryptString(ciphertextBase64Url, ivBase64Url, base64UrlKey) {
+    const decoder = new TextDecoder();
+    const keyBytes = base64UrlDecode(base64UrlKey);
+    const iv = base64UrlDecode(ivBase64Url);
+    const ciphertext = base64UrlDecode(ciphertextBase64Url);
+
+    if (keyBytes.byteLength !== 32) {
+        throw new Error("TOKEN_ENCRYPTION_KEY must decode to 32 bytes.");
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        keyBytes,
+        { name: "AES-GCM" },
+        false,
+        ["decrypt"]
+    );
+
+    const plainBuffer = await crypto.subtle.decrypt(
+        {
+            name: "AES-GCM",
+            iv
+        },
+        cryptoKey,
+        ciphertext
+    );
+
+    return decoder.decode(plainBuffer);
+}
+
+function sanitizeRuntimeError(error) {
+    const message = error?.message || "Unknown error";
+
+    return message
+        .replace(/refresh_token=[^&\s]+/gi, "refresh_token=[redacted]")
+        .replace(/access_token=[^&\s]+/gi, "access_token=[redacted]")
+        .slice(0, 240);
+}
+
 function base64UrlDecode(value) {
     const base64 = value
         .replaceAll("-", "+")
@@ -607,4 +937,26 @@ function base64UrlDecode(value) {
     }
 
     return bytes;
+}
+
+async function runScheduledUpdates(env) {
+    const users = await env.DB.prepare(`
+    SELECT discord_user_id
+    FROM users
+    WHERE enabled = 1
+      AND spotify_connected = 1
+      AND spotify_refresh_token_encrypted IS NOT NULL
+      AND spotify_refresh_token_iv IS NOT NULL
+  `).all();
+
+    const rows = users.results || [];
+
+    for (const user of rows) {
+        await updateOneUser(env, user.discord_user_id);
+    }
+
+    return {
+        ok: true,
+        updatedUsers: rows.length
+    };
 }
