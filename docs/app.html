@@ -1,15 +1,390 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Listen on Repeat</title>
-</head>
-<body>
-<h1>Listen on Repeat</h1>
-<p>Connect Discord and Spotify to keep your profile widget updated.</p>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Listen on Repeat Dashboard</title>
+    <meta name="description" content="Connect Discord and Spotify for Listen on Repeat." />
 
-<a href="/api/auth/discord/start">Log in with Discord</a>
-<a href="/api/auth/spotify/start">Connect Spotify</a>
-<button id="delete-account">Delete my data</button>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f1117;
+            --panel: #171a23;
+            --panel-2: #1f2430;
+            --text: #f3f5f7;
+            --muted: #aab2c0;
+            --accent: #1db954;
+            --discord: #5865f2;
+            --danger: #ff5c7a;
+            --border: #2b3140;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background:
+                    radial-gradient(circle at top left, rgba(29, 185, 84, 0.18), transparent 36rem),
+                    radial-gradient(circle at bottom right, rgba(88, 101, 242, 0.20), transparent 32rem),
+                    var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        main {
+            width: min(920px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 72px 0;
+        }
+
+        .card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)), var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+        }
+
+        .eyebrow {
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            margin: 0 0 16px;
+            font-size: clamp(2.4rem, 7vw, 5rem);
+            line-height: 0.95;
+            letter-spacing: -0.06em;
+        }
+
+        p {
+            color: var(--muted);
+            margin: 0 0 16px;
+        }
+
+        a {
+            color: var(--text);
+            text-decoration-color: var(--accent);
+            text-underline-offset: 4px;
+        }
+
+        a:hover {
+            color: var(--accent);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .status-card {
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+        }
+
+        .status-card h2 {
+            margin: 0 0 8px;
+            font-size: 1.1rem;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0 16px;
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #697386;
+        }
+
+        .status.connected .dot {
+            background: var(--accent);
+        }
+
+        .status.disconnected .dot {
+            background: #697386;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 28px;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 700;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #06120a;
+        }
+
+        .button.discord {
+            background: var(--discord);
+            border-color: var(--discord);
+            color: white;
+        }
+
+        .button.danger {
+            background: transparent;
+            border-color: rgba(255, 92, 122, 0.5);
+            color: var(--danger);
+        }
+
+        .button.disabled,
+        .button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .notice {
+            margin-top: 28px;
+            padding: 16px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .small {
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        footer {
+            color: var(--muted);
+            margin-top: 24px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 28px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<main>
+    <section class="card">
+        <div class="eyebrow">Dashboard</div>
+        <h1>Listen on Repeat</h1>
+
+        <p id="intro">
+            Checking your connection status...
+        </p>
+
+        <div class="status-grid">
+            <section class="status-card">
+                <h2>Discord</h2>
+                <div id="discord-status" class="status disconnected">
+                    <span class="dot"></span>
+                    <span>Checking...</span>
+                </div>
+                <p class="small" id="discord-detail">
+                    Discord connects your account to this widget.
+                </p>
+                <a id="discord-action" class="button discord" href="/api/auth/discord/start">
+                    Log in with Discord
+                </a>
+            </section>
+
+            <section class="status-card">
+                <h2>Spotify</h2>
+                <div id="spotify-status" class="status disconnected">
+                    <span class="dot"></span>
+                    <span>Checking...</span>
+                </div>
+                <p class="small" id="spotify-detail">
+                    Spotify lets the widget fetch your top tracks.
+                </p>
+                <a id="spotify-action" class="button primary disabled" href="/api/auth/spotify/start">
+                    Connect Spotify
+                </a>
+            </section>
+        </div>
+
+        <div class="button-row">
+            <a class="button" href="/">Back to home</a>
+            <button id="delete-account" class="button danger" type="button" disabled>
+                Delete my data
+            </button>
+        </div>
+
+        <div class="notice" id="last-update">
+            Once connected, Listen on Repeat will be able to update your Discord profile widget with your Spotify top tracks.
+        </div>
+    </section>
+
+    <footer>
+        Listen on Repeat. Built by PikaChokeMe.
+    </footer>
+</main>
+
+<script>
+    const intro = document.getElementById("intro");
+
+    const discordStatus = document.getElementById("discord-status");
+    const discordDetail = document.getElementById("discord-detail");
+    const discordAction = document.getElementById("discord-action");
+
+    const spotifyStatus = document.getElementById("spotify-status");
+    const spotifyDetail = document.getElementById("spotify-detail");
+    const spotifyAction = document.getElementById("spotify-action");
+
+    const deleteButton = document.getElementById("delete-account");
+    const lastUpdate = document.getElementById("last-update");
+
+    function setStatus(element, connected, text) {
+        element.classList.toggle("connected", connected);
+        element.classList.toggle("disconnected", !connected);
+        element.querySelector("span:last-child").textContent = text;
+    }
+
+    function disableLink(link, disabled) {
+        link.classList.toggle("disabled", disabled);
+        link.setAttribute("aria-disabled", String(disabled));
+    }
+
+    async function loadMe() {
+        const response = await fetch("/api/me", {
+            credentials: "include"
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to load account status.");
+        }
+
+        return response.json();
+    }
+
+    async function refreshDashboard() {
+        try {
+            const data = await loadMe();
+
+            if (!data.loggedIn) {
+                intro.textContent = "Log in with Discord to start setting up your widget.";
+
+                setStatus(discordStatus, false, "Not connected");
+                discordDetail.textContent = "Discord is required before connecting Spotify.";
+                discordAction.textContent = "Log in with Discord";
+                discordAction.href = "/api/auth/discord/start";
+                disableLink(discordAction, false);
+
+                setStatus(spotifyStatus, false, "Not connected");
+                spotifyDetail.textContent = "Connect Discord first, then Spotify.";
+                spotifyAction.textContent = "Connect Spotify";
+                disableLink(spotifyAction, true);
+
+                deleteButton.disabled = true;
+                return;
+            }
+
+            const user = data.user;
+            const spotifyConnected = Number(user.spotify_connected) === 1;
+
+            intro.textContent = `Logged in as ${user.discord_username || "Discord user"}.`;
+
+            setStatus(discordStatus, true, "Connected");
+            discordDetail.textContent = `Discord account linked: ${user.discord_username || user.discord_user_id}`;
+            discordAction.textContent = "Connected";
+            disableLink(discordAction, true);
+
+            if (spotifyConnected) {
+                setStatus(spotifyStatus, true, "Connected");
+                spotifyDetail.textContent = "Spotify is connected and ready for widget updates.";
+                spotifyAction.textContent = "Connected";
+                disableLink(spotifyAction, true);
+            } else {
+                setStatus(spotifyStatus, false, "Not connected");
+                spotifyDetail.textContent = "Connect Spotify so the widget can read your top tracks.";
+                spotifyAction.textContent = "Connect Spotify";
+                disableLink(spotifyAction, false);
+            }
+
+            deleteButton.disabled = false;
+
+            if (user.last_success_at) {
+                lastUpdate.textContent = `Last successful widget update: ${user.last_success_at}`;
+            } else if (user.last_error) {
+                lastUpdate.textContent = `Last update error: ${user.last_error}`;
+            } else {
+                lastUpdate.textContent = "No widget update has run yet.";
+            }
+        } catch (error) {
+            intro.textContent = "Something went wrong while loading your dashboard.";
+            lastUpdate.textContent = error.message || "Unknown dashboard error.";
+        }
+    }
+
+    deleteButton.addEventListener("click", async () => {
+        const confirmed = confirm("Delete your stored Listen on Repeat data? You can reconnect later.");
+
+        if (!confirmed) {
+            return;
+        }
+
+        deleteButton.disabled = true;
+        deleteButton.textContent = "Deleting...";
+
+        const response = await fetch("/api/delete", {
+            method: "POST",
+            credentials: "include"
+        });
+
+        if (!response.ok) {
+            deleteButton.disabled = false;
+            deleteButton.textContent = "Delete my data";
+            alert("Delete failed. Extremely rude little API gremlin.");
+            return;
+        }
+
+        window.location.href = "/";
+    });
+
+    refreshDashboard();
+</script>
 </body>
 </html>
