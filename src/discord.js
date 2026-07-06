@@ -5,7 +5,8 @@ export async function patchDiscordWidget({ config, payload }) {
     method: "PATCH",
     headers: {
       "Authorization": `Bot ${config.botToken}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "User-Agent": "DiscordBot (https://github.com/PikaChokeMe/recently-on-repeat, 0.1.0)"
     },
     body: JSON.stringify(payload)
   });
