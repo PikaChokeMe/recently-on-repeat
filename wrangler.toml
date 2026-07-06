@@ -21,5 +21,9 @@ binding = "DB"
 database_name = "listen-on-repeat"
 database_id = "cc18cd4c-e9cb-4bfd-bfeb-e350128142f5"
 
+[observability.logs]
+enabled = false
+invocation_logs = true
+
 [triggers]
 crons = ["17 */3 * * *"]
