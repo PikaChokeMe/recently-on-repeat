@@ -3,7 +3,7 @@ const DISCORD_OAUTH_URL = "https://discord.com/oauth2/authorize";
 const DISCORD_SCOPES = "identify openid sdk.social_layer";
 
 const SPOTIFY_ACCOUNTS_BASE = "https://accounts.spotify.com";
-const SPOTIFY_SCOPES = "user-top-read";
+const SPOTIFY_SCOPES = "user-top-read user-read-recently-played";
 
 export default {
     async fetch(request, env, ctx) {
@@ -384,6 +384,11 @@ async function handleDelete(request, env) {
     }
 
     await env.DB.prepare(`
+        DELETE FROM recent_plays
+        WHERE discord_user_id = ?
+    `).bind(discordUserId).run();
+
+    await env.DB.prepare(`
         DELETE FROM users
         WHERE discord_user_id = ?
     `).bind(discordUserId).run();
@@ -436,14 +441,15 @@ async function updateOneUser(env, discordUserId) {
     requireEnv(env, "DISCORD_BOT_TOKEN");
 
     const user = await env.DB.prepare(`
-    SELECT
-      discord_user_id,
-      spotify_refresh_token_encrypted,
-      spotify_refresh_token_iv,
-      spotify_connected,
-      enabled
-    FROM users
-    WHERE discord_user_id = ?
+        SELECT
+            discord_user_id,
+            spotify_refresh_token_encrypted,
+            spotify_refresh_token_iv,
+            spotify_connected,
+            enabled,
+            recently_played_cursor_ms
+        FROM users
+        WHERE discord_user_id = ?
   `).bind(discordUserId).first();
 
     if (!user) {
@@ -493,7 +499,7 @@ async function updateOneUser(env, discordUserId) {
             ).run();
         }
 
-        const tracks = await getSpotifyTopTracks(env, tokenBody.access_token);
+        const tracks = await getWidgetTracksForUser(env, user, tokenBody.access_token);
         const payload = buildDiscordPayload(tracks);
 
         await patchDiscordWidgetForUser(env, discordUserId, payload);
@@ -604,7 +610,13 @@ async function patchDiscordWidgetForUser(env, discordUserId, payload) {
         throw new Error(`Discord widget patch failed: ${response.status} ${text.slice(0, 240)}`);
     }
 
-    return text ? JSON.parse(text) : {};
+    try {
+        return text ? JSON.parse(text) : {};
+    } catch {
+        return {
+            raw: text
+        };
+    }
 }
 
 const FALLBACK_ART_URL = "https://placehold.co/512x512/1f2430/f3f5f7.png?text=No+Art";
@@ -959,4 +971,214 @@ async function runScheduledUpdates(env) {
         ok: true,
         updatedUsers: rows.length
     };
+}
+
+function useRecentRepeatsMode(env) {
+    return env.EXPERIMENTAL_RECENT_REPEATS === "1";
+}
+
+async function getWidgetTracksForUser(env, user, accessToken) {
+    if (!useRecentRepeatsMode(env)) {
+        return getSpotifyTopTracks(env, accessToken);
+    }
+
+    await syncRecentlyPlayed(env, user, accessToken);
+
+    const recentRepeatTracks = await getRecentRepeatTracks(env, user.discord_user_id);
+
+    if (recentRepeatTracks.length > 0) {
+        return recentRepeatTracks;
+    }
+
+    return getSpotifyTopTracks(env, accessToken);
+}
+
+async function syncRecentlyPlayed(env, user, accessToken) {
+    const url = new URL(`${SPOTIFY_API_BASE}/me/player/recently-played`);
+    url.searchParams.set("limit", "50");
+
+    if (user.recently_played_cursor_ms) {
+        url.searchParams.set("after", String(user.recently_played_cursor_ms));
+    }
+
+    const response = await fetch(url, {
+        headers: {
+            "Authorization": `Bearer ${accessToken}`
+        }
+    });
+
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(`Spotify recently played failed: ${response.status} ${body.error?.message || body.error || "unknown_error"}`);
+    }
+
+    const items = body.items || [];
+
+    let newestPlayedAtMs = Number(user.recently_played_cursor_ms || 0);
+
+    for (const item of items) {
+        const track = item.track;
+
+        if (!track || !track.id || !item.played_at) {
+            continue;
+        }
+
+        const playedAtMs = Date.parse(item.played_at);
+
+        if (!Number.isFinite(playedAtMs)) {
+            continue;
+        }
+
+        newestPlayedAtMs = Math.max(newestPlayedAtMs, playedAtMs);
+
+        await env.DB.prepare(`
+      INSERT OR IGNORE INTO recent_plays (
+        discord_user_id,
+        played_at,
+        played_at_ms,
+        track_id,
+        track_name,
+        artist_name,
+        album_name,
+        album_art_url,
+        spotify_track_url
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+            user.discord_user_id,
+            item.played_at,
+            playedAtMs,
+            track.id,
+            track.name || "Unknown Track",
+            getArtists(track),
+            track.album?.name || null,
+            getAlbumArt(track),
+            track.external_urls?.spotify || null
+        ).run();
+    }
+
+    if (newestPlayedAtMs > Number(user.recently_played_cursor_ms || 0)) {
+        await env.DB.prepare(`
+      UPDATE users
+      SET
+        recently_played_cursor_ms = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE discord_user_id = ?
+    `).bind(
+            newestPlayedAtMs,
+            user.discord_user_id
+        ).run();
+    }
+
+    await trimRecentPlayHistory(env, user.discord_user_id);
+}
+
+async function trimRecentPlayHistory(env, discordUserId) {
+    const retentionDays = Number(env.RECENT_PLAY_RETENTION_DAYS || "30");
+    const maxEvents = Number(env.RECENT_PLAY_MAX_EVENTS || "5000");
+    const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+    await env.DB.prepare(`
+    DELETE FROM recent_plays
+    WHERE discord_user_id = ?
+      AND played_at_ms < ?
+  `).bind(
+        discordUserId,
+        cutoffMs
+    ).run();
+
+    await env.DB.prepare(`
+        DELETE FROM recent_plays
+        WHERE rowid IN (
+            SELECT rowid
+            FROM recent_plays
+            WHERE discord_user_id = ?
+            ORDER BY played_at_ms DESC
+            LIMIT -1 OFFSET ?
+            )
+    `).bind(
+        discordUserId,
+        maxEvents
+    ).run();
+}
+
+async function getRecentRepeatTracks(env, discordUserId) {
+    const limit = Number(env.SPOTIFY_LIMIT || "5");
+    const retentionDays = Number(env.RECENT_PLAY_RETENTION_DAYS || "30");
+    const maxEvents = Number(env.RECENT_PLAY_MAX_EVENTS || "5000");
+    const halfLifeDays = Number(env.RECENT_REPEAT_HALF_LIFE_DAYS || "2.5");
+
+    const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+    const result = await env.DB.prepare(`
+    SELECT
+      track_id,
+      track_name,
+      artist_name,
+      album_name,
+      album_art_url,
+      spotify_track_url,
+      played_at_ms
+    FROM recent_plays
+    WHERE discord_user_id = ?
+      AND played_at_ms >= ?
+    ORDER BY played_at_ms DESC
+    LIMIT ?
+  `).bind(
+        discordUserId,
+        cutoffMs,
+        maxEvents
+    ).all();
+
+    const rows = result.results || [];
+    const now = Date.now();
+    const tracks = new Map();
+
+    for (const row of rows) {
+        const ageDays = Math.max(0, (now - Number(row.played_at_ms)) / (24 * 60 * 60 * 1000));
+        const weight = Math.pow(0.5, ageDays / halfLifeDays);
+
+        const existing = tracks.get(row.track_id) || {
+            track_id: row.track_id,
+            track_name: row.track_name,
+            artist_name: row.artist_name,
+            album_name: row.album_name,
+            album_art_url: row.album_art_url,
+            spotify_track_url: row.spotify_track_url,
+            score: 0,
+            play_count: 0,
+            last_played_at_ms: 0
+        };
+
+        existing.score += weight;
+        existing.play_count += 1;
+        existing.last_played_at_ms = Math.max(existing.last_played_at_ms, Number(row.played_at_ms));
+
+        tracks.set(row.track_id, existing);
+    }
+
+    return [...tracks.values()]
+        .sort((a, b) => {
+            if (b.score !== a.score) {
+                return b.score - a.score;
+            }
+
+            return b.last_played_at_ms - a.last_played_at_ms;
+        })
+        .slice(0, limit)
+        .map((row) => ({
+            id: row.track_id,
+            name: row.track_name,
+            artists: String(row.artist_name || "Unknown Artist")
+                .split(", ")
+                .map((name) => ({ name })),
+            album: {
+                name: row.album_name || "Unknown Album",
+                images: row.album_art_url ? [{ url: row.album_art_url }] : []
+            },
+            external_urls: {
+                spotify: row.spotify_track_url
+            }
+        }));
 }

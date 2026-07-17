@@ -15,6 +15,11 @@ DISCORD_API_BASE = "https://discord.com/api/v9"
 SPOTIFY_TIME_RANGE = "short_term"
 SPOTIFY_LIMIT = "5"
 DISCORD_IDENTITY_ID = "0"
+EXPERIMENTAL_RECENT_REPEATS = "1"
+RECENT_REPEAT_HALF_LIFE_DAYS = "2.5"
+RECENT_PLAY_RETENTION_DAYS = "30"
+RECENT_PLAY_MAX_EVENTS = "5000"
+SPOTIFY_LIMIT = "5"
 
 [[d1_databases]]
 binding = "DB"
@@ -27,4 +32,4 @@ invocation_logs = true
 head_sampling_rate = 1
 
 [triggers]
-crons = ["17 */3 * * *"]
+crons = ["17 * * * *"]
